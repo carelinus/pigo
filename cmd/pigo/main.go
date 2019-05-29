@@ -1,5 +1,7 @@
 package main
 
+//go:generate go run -tags=dev assets_generate.go
+
 import (
 	"encoding/json"
 	"flag"
@@ -15,6 +17,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/shurcooL/httpfs/vfsutil"
 	"github.com/esimov/pigo/core"
 	"github.com/fogleman/gg"
 )
@@ -37,7 +40,6 @@ var dc *gg.Context
 // faceDetector struct contains Pigo face detector general settings.
 type faceDetector struct {
 	angle        float64
-	cascadeFile  string
 	destination  string
 	minSize      int
 	maxSize      int
@@ -72,8 +74,8 @@ func main() {
 	}
 	flag.Parse()
 
-	if len(*source) == 0 || len(*destination) == 0 || len(*cascadeFile) == 0 {
-		log.Fatal("Usage: pigo -in input.jpg -out out.png -cf data/facefinder")
+	if len(*source) == 0 || len(*destination) == 0 {
+		log.Fatal("Usage: pigo -in input.jpg -out out.png")
 	}
 
 	fileTypes := []string{".jpg", ".jpeg", ".png"}
@@ -92,7 +94,7 @@ func main() {
 	s.start("Processing...")
 	start := time.Now()
 
-	fd := newFaceDetector(*destination, *cascadeFile, *minSize, *maxSize, *shiftFactor, *scaleFactor, *iouThreshold, *angle)
+	fd := newFaceDetector(*destination, *minSize, *maxSize, *shiftFactor, *scaleFactor, *iouThreshold, *angle)
 	faces, err := fd.detectFaces(*source)
 	if err != nil {
 		log.Fatalf("Detection error: %v", err)
@@ -119,11 +121,10 @@ func main() {
 }
 
 // newFaceDetector initialises the constructor function.
-func newFaceDetector(destination, cf string, minSize, maxSize int, shf, scf, iou, angle float64) *faceDetector {
+func newFaceDetector(destination, minSize, maxSize int, shf, scf, iou, angle float64) *faceDetector {
 	return &faceDetector{
 		angle:        angle,
 		destination:  destination,
-		cascadeFile:  cf,
 		minSize:      minSize,
 		maxSize:      maxSize,
 		shiftFactor:  shf,
@@ -158,7 +159,7 @@ func (fd *faceDetector) detectFaces(source string) ([]pigo.Detection, error) {
 		},
 	}
 
-	cascadeFile, err := ioutil.ReadFile(fd.cascadeFile)
+	cascadeFile, err := vfsutil.ReadFile(assets, "facefinder")
 	if err != nil {
 		return nil, err
 	}
